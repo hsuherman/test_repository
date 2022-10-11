@@ -13,6 +13,7 @@ import yfinance as yf #General Market Data
 from pyvalet import ValetInterpreter #Bank of Canada
 import pandasdmx as sdmx
 import requests
+import numpy as np
 
 
 from urllib.request import urlopen
@@ -20,16 +21,35 @@ from xmltodict import parse
 
 """Data Manipulation"""
 import pandas as pd
-import numpy as np
-import csv
+import datetime
+from scipy import stats
 
-"""Data Visualizer"""
-import plotly as py
-import plotly.express as px
-import plotly.io as pio 
-import plotly.graph_objects as go
-pio.renderers.default = "browser" #to show results in chrome
+def QueryECB_YC(series): #For European Central Bank
+    with urlopen("https://sdw-wsrest.ecb.europa.eu/service/data/YC/" + series) as url:
+         raw = parse(url.read().decode('utf8'))
+    data = raw['message:GenericData']['message:DataSet']['generic:Series']['generic:Obs']
+    res = {x['generic:ObsDimension']['@value']: 
+           float(x['generic:ObsValue']['@value'])
+           for x in data}
+    return res
 
+def QueryECB_ESTR(series):
+    with urlopen("https://sdw-wsrest.ecb.europa.eu/service/data/EST/" + series) as url:
+         raw = parse(url.read().decode('utf8'))
+    data = raw['message:GenericData']['message:DataSet']['generic:Series']['generic:Obs']
+    res = {x['generic:ObsDimension']['@value']: 
+           float(x['generic:ObsValue']['@value'])
+           for x in data}
+    return res
+
+def QueryECB(database, series):
+    with urlopen("https://sdw-wsrest.ecb.europa.eu/service/data/" + database + "/" + series) as url:
+         raw = parse(url.read().decode('utf8'))
+    data = raw['message:GenericData']['message:DataSet']['generic:Series']['generic:Obs']
+    res = {x['generic:ObsDimension']['@value']: 
+           float(x['generic:ObsValue']['@value'])
+           for x in data}
+    return res
 
 """Custom Modules"""
 import MD_Module as md
@@ -62,39 +82,14 @@ canada_two_yr = vi.get_series_observations("BD.CDN.2YR.DQ.YLD", response_format=
 canada_five_yr = vi.get_series_observations("BD.CDN.5YR.DQ.YLD", response_format='csv')[1]
 canada_ten_yr = vi.get_series_observations("BD.CDN.10YR.DQ.YLD", response_format='csv')[1]
 canada_thirty_yr = vi.get_series_observations("BD.CDN.LONG.DQ.YLD", response_format='csv')[1]
+ 
+
 """Inflation Tracker"""
 canada_inflation_ten_yr = vi.get_series_observations("STATIC_ATABLE_V122544_V122553", response_format='csv')[1]
 
 
 """EUROPE, MIDDLE EAST, AND AFRICA"""
 """Fixed Income Rates"""
-def QueryECB_YC(series): #For European Central Bank
-    with urlopen("https://sdw-wsrest.ecb.europa.eu/service/data/YC/" + series) as url:
-         raw = parse(url.read().decode('utf8'))
-    data = raw['message:GenericData']['message:DataSet']['generic:Series']['generic:Obs']
-    res = {x['generic:ObsDimension']['@value']: 
-           float(x['generic:ObsValue']['@value'])
-           for x in data}
-    return res
-
-def QueryECB_ESTR(series):
-    with urlopen("https://sdw-wsrest.ecb.europa.eu/service/data/EST/" + series) as url:
-         raw = parse(url.read().decode('utf8'))
-    data = raw['message:GenericData']['message:DataSet']['generic:Series']['generic:Obs']
-    res = {x['generic:ObsDimension']['@value']: 
-           float(x['generic:ObsValue']['@value'])
-           for x in data}
-    return res
-
-def QueryECB(database, series):
-    with urlopen("https://sdw-wsrest.ecb.europa.eu/service/data/" + database + "/" + series) as url:
-         raw = parse(url.read().decode('utf8'))
-    data = raw['message:GenericData']['message:DataSet']['generic:Series']['generic:Obs']
-    res = {x['generic:ObsDimension']['@value']: 
-           float(x['generic:ObsValue']['@value'])
-           for x in data}
-    return res
-
 emea_two_yr = pd.DataFrame(QueryECB_YC("B.U2.EUR.4F.G_N_A.SV_C_YM.SR_2Y").items())
 emea_five_yr = pd.DataFrame(QueryECB_YC("B.U2.EUR.4F.G_N_A.SV_C_YM.SR_5Y").items())
 emea_ten_yr = pd.DataFrame(QueryECB_YC("B.U2.EUR.4F.G_N_A.SV_C_YM.SR_10Y").items())
@@ -106,8 +101,6 @@ ester_twelve_mo = pd.DataFrame(QueryECB_ESTR("B.EU000A2QQF57.CR").items())
 """Inflation Tracker"""
 #I couldn't find it - Hans
 
-
-
 """JAPAN"""
 """Fixed Income Rates"""
 japan_ten_yr = pd.DataFrame(QueryECB("FM", "M.JP.JPY.RT.BZ.JPY10YZ_R.YLDE").items())
@@ -116,9 +109,6 @@ japan_ten_yr = pd.DataFrame(QueryECB("FM", "M.JP.JPY.RT.BZ.JPY10YZ_R.YLDE").item
 #I couldn't find it - Hans
 """Inflation Tracker"""
 #I coudln't find it - Hans
-"""---------------------------------------------------------------------------------------------"""
-
-
 
 """---------------------------------------------Credit------------------------------------------------"""
 """USA"""
@@ -131,72 +121,7 @@ euro_hy_oas = pd.DataFrame(fred.get_series("BAMLHE00EHYIOAS"))
 emea_ig_oas = pd.DataFrame(fred.get_series("BAMLEMELLCRPIEMEAUSOAS"))
 itraxx_cross_swap = yf.Ticker('DBXM.DE').history(period='max')
 
-"""Emerging Markets (EM)"""
-#I coudln't find it - Hans
-"""---------------------------------------------------------------------------------------------"""
+dashboard_df = pd.DataFrame(columns = ['latest_date', 'latest_data', 'daily_change', 'weekly_change', 'weekly_zscore', 'monthly_change', 'monthly_zscore', 'quarterly_change', 'quarterly_zscore'])
+dashboard_df.loc['US04M'] = md.dash(us_threem_data, 0)
 
-
-"""----------------------------------------------Commodities-----------------------------------------------"""
-
-"""---------------------------------------------------------------------------------------------"""
-
-
-"""VISUALIZATIONS"""
-
-df = [us_threem_data, us_sixm_data, us_one_data, us_two_data, us_five_data, us_ten_data, us_thirty_data]
-
-from functools import reduce
-
-us_treasury = reduce(lambda  left,right: pd.merge(left,right, left_index=True, right_index=True, how='inner'), df).dropna().tail(225)
-us_treasury.columns = [0.25, 0.5, 1, 2, 5, 10, 30]
-us_treasury_unpivot = us_treasury.reset_index().melt(id_vars='index')
-us_treasury_unpivot['index'] = pd.to_datetime(us_treasury_unpivot['index'])
-us_treasury_unpivot['date_int'] = pd.to_datetime(us_treasury_unpivot['index']).astype(str)
-us_treasury_unpivot['variable'] = (us_treasury_unpivot['variable']).astype(float)
-
-yield_curve = px.line(
-    us_treasury_unpivot, 
-    x='variable',
-    y='value', 
-    animation_frame='date_int',
-    range_x=[-1,32],
-    range_y=[0,4],
-    markers = True
-    )
-yield_curve.update_xaxes(
-    fixedrange = True,
-    tickvals = us_treasury.columns,
-    ticksuffix = 'Y'
-    )
-yield_curve.update_yaxes(
-    tick0 = 0,
-    dtick = 0.5
-    )
-yield_curve.update_layout(
-    plot_bgcolor= 'white',
-    )
-yield_curve.update_traces(
-    line_color='darkred',
-    line_width=2,
-    )
-
-"""
-Dash visualizer
-
-from dash import Dash, html, dcc
-
-app = Dash(__name__)
-app.layout = html.Div(children=[
-    
-    html.H1(children='Hello Dash'),
-    html.Div(children='''Dash: A web application framework for your data'''),
-    dcc.Graph(id='US 2 Year', figure=us_treasury_two),
-    dcc.Graph(id='US 5 Year', figure=us_treasury_five),
-    dcc.Graph(id='US 10 Year', figure=us_treasury_ten),
-    dcc.Graph(id='US 30 Year', figure=us_treasury_thirty)
-    
-    ])
-
-if __name__ == '__main__':
-    app.run_server(debug=True)
-"""
+dashboard_df.to_excel('C:/Users/Hans/Desktop/test_repo/dashboard_df.xlsx')
