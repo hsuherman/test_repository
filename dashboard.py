@@ -52,7 +52,7 @@ def QueryECB(database, series):
     return res
 
 """Custom Modules"""
-import MD_Module as md
+import dashboard_module as md
 
 """-------------------------------------------Rates--------------------------------------------------"""
 
@@ -122,6 +122,9 @@ emea_ig_oas = pd.DataFrame(fred.get_series("BAMLEMELLCRPIEMEAUSOAS"))
 itraxx_cross_swap = yf.Ticker('DBXM.DE').history(period='max')
 
 dashboard_df = pd.DataFrame(columns = ['latest_date', 'latest_data', 'daily_change', 'weekly_change', 'weekly_zscore', 'monthly_change', 'monthly_zscore', 'quarterly_change', 'quarterly_zscore'])
+
 dashboard_df.loc['US04M'] = md.dash(us_threem_data, 0)
+
+
 
 dashboard_df.to_excel('C:/Users/Hans/Desktop/test_repo/dashboard_df.xlsx')
